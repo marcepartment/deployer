@@ -26,4 +26,8 @@ class FileHandler implements HandlerInterface
     {
         file_put_contents($this->filePath, $message, FILE_APPEND);
     }
+
+    public function setFilePath(string $filePath): void{
+        $this->filePath = $filePath;
+    }
 }
