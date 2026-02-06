@@ -171,9 +171,7 @@ class Deployer extends Container
          ******************************/
 
         $this['log_handler'] = new FileHandler($this['log'] ?? '');
-        $this['logger'] = function () {
-            return new Logger($this['log_handler']);
-        };
+        $this['logger'] = new Logger($this['log_handler']);
 
         self::$instance = $this;
     }
