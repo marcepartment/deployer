@@ -170,7 +170,7 @@ class Deployer extends Container
          *           Logger           *
          ******************************/
 
-        $this['log_handler'] = new FileHandler($this['log']);
+        $this['log_handler'] = new FileHandler($this['log'] ?? '');
         $this['logger'] = function () {
             return new Logger($this['log_handler']);
         };
