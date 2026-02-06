@@ -10,6 +10,8 @@ declare(strict_types=1);
 
 namespace Deployer\Logger\Handler;
 
+use function Deployer\currentHost;
+
 class FileHandler implements HandlerInterface
 {
     /**
@@ -27,9 +29,11 @@ class FileHandler implements HandlerInterface
         if(!empty($this->filePath)) {
             file_put_contents($this->filePath, $message, FILE_APPEND);
         }
-    }
 
-    public function setFilePath(string $filePath): void{
-        $this->filePath = $filePath;
+        if(currentHost()->has('log_file')){
+            if(!empty(currentHost()->get('log_file'))){
+                file_put_contents(currentHost()->get('log_file'), $message, FILE_APPEND);
+            }
+        }
     }
 }
