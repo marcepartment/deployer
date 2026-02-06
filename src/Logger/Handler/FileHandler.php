@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 namespace Deployer\Logger\Handler;
 
+use Deployer\Task\Context;
 use function Deployer\currentHost;
 
 class FileHandler implements HandlerInterface
@@ -30,9 +31,11 @@ class FileHandler implements HandlerInterface
             file_put_contents($this->filePath, $message, FILE_APPEND);
         }
 
-        if(currentHost()->has('log_file')){
-            if(!empty(currentHost()->get('log_file'))){
-                file_put_contents(currentHost()->get('log_file'), $message, FILE_APPEND);
+        if(Context::has()){
+            if(currentHost()->has('log_file')){
+                if(!empty(currentHost()->get('log_file'))){
+                    file_put_contents(currentHost()->get('log_file'), $message, FILE_APPEND);
+                }
             }
         }
     }
