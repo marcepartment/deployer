@@ -62,7 +62,7 @@ class MainCommand extends SelectCommand
         $this->addOption(
             'lock-path',
             'lkp',
-            Option::VALUE_NONE,
+            Option::VALUE_REQUIRED,
             'The absolute path to the lock file. By default it is stored where the command is executed.',
         );
         $this->addOption(
