@@ -46,6 +46,7 @@ use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Input\InputOption as Option;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
@@ -279,6 +280,16 @@ class Deployer extends Container
 
         try {
             $console = new Application('Deployer', $version);
+
+            $console->getDefinition()->addOption(
+                new InputOption(
+                'lock',
+                'lk',
+                Option::VALUE_NONE,
+                'Prevent the exact same command from running at the same time. It is useful for cron jobs.',
+                )
+            );
+
             $deployer = new self($console);
 
             // Handle command locking
