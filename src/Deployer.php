@@ -302,22 +302,18 @@ class Deployer extends Container
             $deployer->init();
             $console->run($input, $output);
 
-            // Unlock after successful execution
-            if ($shouldLock) {
-                $deployer->unlockCommand($fullCommand);
-            }
-
         } catch (Throwable $exception) {
-            if ($shouldLock && isset($deployer)) {
-                $deployer->unlockCommand($fullCommand);
-            }
-
             if (str_contains("$input", "-vvv")) {
                 $output->setVerbosity(OutputInterface::VERBOSITY_DEBUG);
             }
             self::printException($output, $exception);
 
             exit(1);
+        } finally {
+            if ($shouldLock && isset($deployer)) {
+                $deployer->output->writeln("Removing lock for command: <comment>$fullCommand</comment>");
+                $deployer->unlockCommand($fullCommand);
+            }
         }
     }
 
@@ -388,8 +384,7 @@ class Deployer extends Container
 
         $locks[$command] = [
             'pid' => getmypid(),
-            'locked_at' => time(),
-            'command' => $command,
+            'locked_at' => time()
         ];
 
         file_put_contents($lockFile, json_encode($locks, JSON_PRETTY_PRINT));
