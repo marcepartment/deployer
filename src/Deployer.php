@@ -290,12 +290,12 @@ class Deployer extends Container
             // Handle command locking
             if ($shouldLock) {
                 $console->setAutoExit(false);
-                if ($deployer->isCommandLocked($fullCommand, $input)) {
+                if ($deployer->isCommandLocked($fullCommand)) {
                     $output->writeln('<error>Command is already running. Exiting.</error>');
                     exit(1);
                 }
 
-                if (!$deployer->lockCommand($fullCommand, $input)) {
+                if (!$deployer->lockCommand($fullCommand)) {
                     $output->writeln('<error>Failed to acquire lock. Exiting.</error>');
                     exit(1);
                 }
@@ -318,8 +318,7 @@ class Deployer extends Container
             exit(1);
         } finally {
             if ($shouldLock && isset($deployer)) {
-                $deployer->output->writeln("Removing lock for command: <comment>$fullCommand</comment>");
-                $deployer->unlockCommand($fullCommand, $input);
+                $deployer->unlockCommand($fullCommand);
             }
         }
     }
@@ -375,9 +374,9 @@ class Deployer extends Container
         return str_starts_with(__FILE__, 'phar:');
     }
 
-    protected function lockCommand(string $command, ArgvInput $input): bool
+    protected function lockCommand(string $command): bool
     {
-        $lockFile = $this->getLockFilePath($input);
+        $lockFile = $this->getLockFilePath();
         $locks = [];
 
         if (file_exists($lockFile)) {
@@ -398,9 +397,9 @@ class Deployer extends Container
         return true;
     }
 
-    protected function isCommandLocked(string $command, ArgvInput $input): bool
+    protected function isCommandLocked(string $command): bool
     {
-        $lockFile = $this->getLockFilePath($input);
+        $lockFile = $this->getLockFilePath();
 
         if (!file_exists($lockFile)) {
             return false;
@@ -412,9 +411,9 @@ class Deployer extends Container
         return isset($locks[$command]);
     }
 
-    protected function unlockCommand(string $command, ArgvInput $input): void
+    protected function unlockCommand(string $command): void
     {
-        $lockFile = $this->getLockFilePath($input);
+        $lockFile = $this->getLockFilePath();
 
         if (!file_exists($lockFile)) {
             return;
@@ -432,9 +431,9 @@ class Deployer extends Container
         }
     }
 
-    protected function getLockFilePath(ArgvInput $input): string
+    protected function getLockFilePath(): string
     {
-        $customPath = $input->getOption('lock-path');
+        $customPath = $this->input->getOption('lock-path');
 
         if ($customPath) {
             // If it's a directory, append the lock filename
