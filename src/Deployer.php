@@ -283,12 +283,10 @@ class Deployer extends Container
             $console = new Application('Deployer', $version);
 
             $console->getDefinition()->addOption(
-                new InputOption(
                     'lock-path',
                     'lkp',
                     Option::VALUE_REQUIRED,
                     'The absolute path to the lock file. By default it is stored where the command is executed.',
-                )
             );
 
             $deployer = new self($console);
