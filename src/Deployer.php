@@ -286,6 +286,7 @@ class Deployer extends Container
         try {
             $console = new Application('Deployer', $version);
             $deployer = new self($console);
+            $deployer->init();
 
             // Handle command locking
             if ($shouldLock) {
@@ -306,7 +307,6 @@ class Deployer extends Container
                 $deployer->importer->import($deployFile);
             }
 
-            $deployer->init();
             $console->run($input, $output);
 
         } catch (Throwable $exception) {
