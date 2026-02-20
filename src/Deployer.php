@@ -434,7 +434,7 @@ class Deployer extends Container
 
     protected function getLockFilePath(ArgvInput $input): string
     {
-        $customPath = $input->getParameterOption('lock-path');
+        $customPath = $input->getOption('lock-path');
 
         if ($customPath) {
             // If it's a directory, append the lock filename
