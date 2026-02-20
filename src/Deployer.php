@@ -44,7 +44,6 @@ use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Input\InputOption as Option;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
@@ -83,6 +82,14 @@ class Deployer extends Container
 
         $console->getDefinition()->addOption(
             new InputOption('file', 'f', InputOption::VALUE_REQUIRED, 'Recipe file path'),
+        );
+        $console->getDefinition()->addOption(
+            new InputOption(
+                'lock-path',
+                'lkp',
+                InputOption::VALUE_REQUIRED,
+                'The absolute path to the lock file. By default it is stored where the command is executed.',
+            )
         );
 
         $this['console'] = function () use ($console) {
@@ -278,16 +285,6 @@ class Deployer extends Container
 
         try {
             $console = new Application('Deployer', $version);
-
-            $console->getDefinition()->addOption(
-                new InputOption(
-                    'lock-path',
-                    'lkp',
-                    Option::VALUE_REQUIRED,
-                    'The absolute path to the lock file. By default it is stored where the command is executed.',
-                )
-            );
-
             $deployer = new self($console);
 
             // Handle command locking
@@ -437,7 +434,7 @@ class Deployer extends Container
 
     protected function getLockFilePath(ArgvInput $input): string
     {
-        $customPath = $input->getOption('lock-path');
+        $customPath = $input->getParameterOption('lock-path');
 
         if ($customPath) {
             // If it's a directory, append the lock filename
