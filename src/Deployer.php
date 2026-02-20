@@ -25,7 +25,6 @@ use Deployer\Component\Pimple\Container;
 use Deployer\ProcessRunner\Printer;
 use Deployer\ProcessRunner\ProcessRunner;
 use Deployer\Ssh\SshClient;
-use Deployer\Configuration;
 use Deployer\Executor\Master;
 use Deployer\Executor\Messenger;
 use Deployer\Host\Host;
@@ -33,7 +32,6 @@ use Deployer\Host\HostCollection;
 use Deployer\Host\Localhost;
 use Deployer\Importer\Importer;
 use Deployer\Logger\Handler\FileHandler;
-use Deployer\Logger\Handler\NullHandler;
 use Deployer\Logger\Logger;
 use Deployer\Selector\Selector;
 use Deployer\Task\ScriptManager;
@@ -46,7 +44,6 @@ use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Input\InputOption as Option;
 use Symfony\Component\Console\Input\InputOption as Option;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -283,10 +280,12 @@ class Deployer extends Container
             $console = new Application('Deployer', $version);
 
             $console->getDefinition()->addOption(
+                new InputOption(
                     'lock-path',
                     'lkp',
                     Option::VALUE_REQUIRED,
                     'The absolute path to the lock file. By default it is stored where the command is executed.',
+                )
             );
 
             $deployer = new self($console);
