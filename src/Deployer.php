@@ -283,6 +283,7 @@ class Deployer extends Container
 
             // Handle command locking
             if ($shouldLock) {
+                $console->setAutoExit(false);
                 if ($deployer->isCommandLocked($fullCommand)) {
                     $output->writeln('<error>Command is already running. Exiting.</error>');
                     exit(1);
