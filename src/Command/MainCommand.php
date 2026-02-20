@@ -54,6 +54,12 @@ class MainCommand extends SelectCommand
             'How many tasks to run in parallel?',
         );
         $this->addOption(
+            'lock',
+            'lk',
+            Option::VALUE_NONE,
+            'Prevent the exact same command from running at the same time. It is useful for cron jobs.',
+        );
+        $this->addOption(
             'no-hooks',
             null,
             Option::VALUE_NONE,

@@ -274,9 +274,26 @@ class Deployer extends Container
         $input = new ArgvInput();
         $output = new ConsoleOutput();
 
+        $tokens = $input->getTokens(); // Get parsed tokens
+        $fullCommand = implode(' ', $tokens);
+        $shouldLock = $input->hasParameterOption('--lock');
+
         try {
             $console = new Application('Deployer', $version);
             $deployer = new self($console);
+
+            // Handle command locking
+            if ($shouldLock) {
+                if ($deployer->isCommandLocked($fullCommand)) {
+                    $output->writeln('<error>Command is already running. Exiting.</error>');
+                    exit(1);
+                }
+
+                if (!$deployer->lockCommand($fullCommand)) {
+                    $output->writeln('<error>Failed to acquire lock. Exiting.</error>');
+                    exit(1);
+                }
+            }
 
             // Import recipe file
             if (is_readable($deployFile ?? '')) {
@@ -286,7 +303,16 @@ class Deployer extends Container
             $deployer->init();
             $console->run($input, $output);
 
+            // Unlock after successful execution
+            if ($shouldLock) {
+                $deployer->unlockCommand($fullCommand);
+            }
+
         } catch (Throwable $exception) {
+            if ($shouldLock && isset($deployer)) {
+                $deployer->unlockCommand($fullCommand);
+            }
+
             if (str_contains("$input", "-vvv")) {
                 $output->setVerbosity(OutputInterface::VERBOSITY_DEBUG);
             }
@@ -345,5 +371,68 @@ class Deployer extends Container
     public static function isPharArchive(): bool
     {
         return str_starts_with(__FILE__, 'phar:');
+    }
+
+    protected function lockCommand(string $command): bool
+    {
+        $lockFile = $this->getLockFilePath();
+        $locks = [];
+
+        if (file_exists($lockFile)) {
+            $content = file_get_contents($lockFile);
+            $locks = json_decode($content, true) ?: [];
+        }
+
+        if (isset($locks[$command])) {
+            return false; // Already locked
+        }
+
+        $locks[$command] = [
+            'pid' => getmypid(),
+            'locked_at' => time(),
+            'command' => $command,
+        ];
+
+        file_put_contents($lockFile, json_encode($locks, JSON_PRETTY_PRINT));
+        return true;
+    }
+
+    protected function isCommandLocked(string $command): bool
+    {
+        $lockFile = $this->getLockFilePath();
+
+        if (!file_exists($lockFile)) {
+            return false;
+        }
+
+        $content = file_get_contents($lockFile);
+        $locks = json_decode($content, true) ?: [];
+
+        return isset($locks[$command]);
+    }
+
+    protected function unlockCommand(string $command): void
+    {
+        $lockFile = $this->getLockFilePath();
+
+        if (!file_exists($lockFile)) {
+            return;
+        }
+
+        $content = file_get_contents($lockFile);
+        $locks = json_decode($content, true) ?: [];
+
+        unset($locks[$command]);
+
+        if (empty($locks)) {
+            unlink($lockFile);
+        } else {
+            file_put_contents($lockFile, json_encode($locks, JSON_PRETTY_PRINT));
+        }
+    }
+
+    protected function getLockFilePath(): string
+    {
+        return getcwd() . '/.deployer_locks.json';
     }
 }
