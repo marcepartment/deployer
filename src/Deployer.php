@@ -428,6 +428,17 @@ class Deployer extends Container
 
     protected function getLockFilePath(): string
     {
+        $customPath = $this->input->getOption('lock-path');
+
+        if ($customPath) {
+            // If it's a directory, append the lock filename
+            if (is_dir($customPath)) {
+                return rtrim($customPath, '/') . '/.deployer_locks.json';
+            }
+            // Otherwise use it as the full file path
+            return $customPath;
+        }
+
         return getcwd() . '/.deployer_locks.json';
     }
 }
