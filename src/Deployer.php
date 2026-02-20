@@ -274,8 +274,7 @@ class Deployer extends Container
         $input = new ArgvInput();
         $output = new ConsoleOutput();
 
-        $tokens = $input->getTokens(); // Get parsed tokens
-        $fullCommand = implode(' ', $tokens);
+        $fullCommand = implode(' ', $_SERVER['argv']);
         $shouldLock = $input->hasParameterOption('--lock');
 
         try {
