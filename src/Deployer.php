@@ -83,14 +83,6 @@ class Deployer extends Container
         $console->getDefinition()->addOption(
             new InputOption('file', 'f', InputOption::VALUE_REQUIRED, 'Recipe file path'),
         );
-        $console->getDefinition()->addOption(
-            new InputOption(
-                'lock-path',
-                'lkp',
-                InputOption::VALUE_REQUIRED,
-                'The absolute path to the lock file. By default it is stored where the command is executed.',
-            )
-        );
 
         $this['console'] = function () use ($console) {
             return $console;
@@ -434,7 +426,7 @@ class Deployer extends Container
 
     protected function getLockFilePath(ArgvInput $input): string
     {
-        $customPath = $input->getOption('--lock-path');
+        $customPath = $input->getParameterOption('--lock-path');
 
         if ($customPath) {
             // If it's a directory, append the lock filename
