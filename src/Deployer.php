@@ -47,6 +47,7 @@ use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\InputOption as Option;
+use Symfony\Component\Console\Input\InputOption as Option;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
@@ -283,10 +284,10 @@ class Deployer extends Container
 
             $console->getDefinition()->addOption(
                 new InputOption(
-                'lock',
-                'lk',
-                Option::VALUE_NONE,
-                'Prevent the exact same command from running at the same time. It is useful for cron jobs.',
+                    'lock-path',
+                    'lkp',
+                    Option::VALUE_REQUIRED,
+                    'The absolute path to the lock file. By default it is stored where the command is executed.',
                 )
             );
 

@@ -54,10 +54,10 @@ class MainCommand extends SelectCommand
             'How many tasks to run in parallel?',
         );
         $this->addOption(
-            'lock-path',
-            'lkp',
-            Option::VALUE_REQUIRED,
-            'The absolute path to the lock file. By default it is stored where the command is executed.',
+            'lock',
+            'lk',
+            Option::VALUE_NONE,
+            'Prevent the exact same command from running at the same time. It is useful for cron jobs.',
         );
         $this->addOption(
             'no-hooks',
