@@ -119,9 +119,7 @@ class Deployer extends Container
          ******************************/
 
         $this['logHandler'] = function () {
-            return !empty($this['log'])
-                ? new FileHandler($this['log'])
-                : new NullHandler();
+            return new FileHandler($this['log'] ?? '');
         };
         $this['logger'] = function ($c) {
             return new Logger($c['output'], $this['logHandler']);
