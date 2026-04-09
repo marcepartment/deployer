@@ -5,8 +5,6 @@ namespace Deployer;
 use Deployer\Exception\Exception;
 use Symfony\Component\Console\Helper\Table;
 
-use function Deployer\Support\escape_shell_argument;
-
 // The name of the release.
 set('release_name', function () {
     return within('{{deploy_path}}', function () {
@@ -112,7 +110,7 @@ task('deploy:release', function () {
     }
 
     // Save release_name.
-    if (is_numeric($releaseName) && is_integer(intval($releaseName))) {
+    if (is_numeric($releaseName)) {
         run("echo $releaseName > .dep/latest_release");
     }
 
@@ -126,7 +124,7 @@ task('deploy:release', function () {
     ];
 
     // Save metainfo about release.
-    $json = escape_shell_argument(json_encode($metainfo));
+    $json = quote(json_encode($metainfo));
     run("echo $json >> .dep/releases_log");
 
     // Make new release.

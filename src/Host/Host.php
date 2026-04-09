@@ -39,7 +39,7 @@ class Host
 
     public function __toString(): string
     {
-        return $this->getTag();
+        return $this->getAlias();
     }
 
     public function config(): Configuration
@@ -288,7 +288,7 @@ class Host
 
     public function connectionOptionsString(): string
     {
-        return implode(' ', array_map('escapeshellarg', $this->connectionOptionsArray()));
+        return implode(' ', array_map('Deployer\quote', $this->connectionOptionsArray()));
     }
 
     /**

@@ -19,18 +19,16 @@ use Deployer\Command\RunCommand;
 use Deployer\Command\SshCommand;
 use Deployer\Command\TreeCommand;
 use Deployer\Command\WorkerCommand;
-use Deployer\Component\PharUpdate\Console\Command as PharUpdateCommand;
-use Deployer\Component\PharUpdate\Console\Helper as PharUpdateHelper;
 use Deployer\Component\Pimple\Container;
 use Deployer\ProcessRunner\Printer;
 use Deployer\ProcessRunner\ProcessRunner;
 use Deployer\Ssh\SshClient;
+use Deployer\Exception\SchemaException;
 use Deployer\Executor\Master;
-use Deployer\Executor\Messenger;
 use Deployer\Host\Host;
 use Deployer\Host\HostCollection;
 use Deployer\Host\Localhost;
-use Deployer\Importer\Importer;
+use Deployer\Import\Import;
 use Deployer\Logger\Handler\FileHandler;
 use Deployer\Logger\Logger;
 use Deployer\Selector\Selector;
@@ -61,12 +59,10 @@ use Throwable;
  * @property Task\ScriptManager $scriptManager
  * @property Selector $selector
  * @property Master $master
- * @property Messenger $messenger
- * @property Messenger $logger
- * @property Printer $pop
+ * @property Logger $logger
  * @property Collection $fail
  * @property InputDefinition $inputDefinition
- * @property Importer $importer
+ * @property Import $importer
  */
 class Deployer extends Container
 {
@@ -122,17 +118,22 @@ class Deployer extends Container
          *            Core            *
          ******************************/
 
-        $this['pop'] = function ($c) {
-            return new Printer($c['output']);
+        $this['logHandler'] = function () {
+            return !empty($this['log'])
+                ? new FileHandler($this['log'])
+                : new NullHandler();
+        };
+        $this['logger'] = function ($c) {
+            return new Logger($c['output'], $this['logHandler']);
         };
         $this['sshClient'] = function ($c) {
-            return new SshClient($c['output'], $c['pop'], $c['logger']);
+            return new SshClient($c['output'], $c['logger']);
         };
         $this['rsync'] = function ($c) {
-            return new Rsync($c['pop'], $c['output']);
+            return new Rsync($c['output'], $c['logger']);
         };
         $this['processRunner'] = function ($c) {
-            return new ProcessRunner($c['pop'], $c['logger']);
+            return new ProcessRunner($c['logger']);
         };
         $this['tasks'] = function () {
             return new TaskCollection();
@@ -149,30 +150,16 @@ class Deployer extends Container
         $this['fail'] = function () {
             return new Collection();
         };
-        $this['messenger'] = function ($c) {
-            return new Messenger($c['input'], $c['output'], $c['logger']);
-        };
         $this['master'] = function ($c) {
             return new Master(
                 $c['hosts'],
                 $c['input'],
                 $c['output'],
-                $c['messenger'],
+                $c['logger'],
             );
         };
         $this['importer'] = function () {
-            return new Importer();
-        };
-
-        /******************************
-         *           Logger           *
-         ******************************/
-
-        $this['log_handler'] = function () {
-            return new FileHandler($this['log'] ?? '');
-        };
-        $this['logger'] = function () {
-            return new Logger($this['log_handler']);
+            return new Import();
         };
 
         self::$instance = $this;
@@ -193,14 +180,6 @@ class Deployer extends Container
         $this->getConsole()->addCommand(new TreeCommand($this));
         $this->getConsole()->addCommand(new SshCommand($this));
         $this->getConsole()->addCommand(new RunCommand($this));
-        if (self::isPharArchive()) {
-            $selfUpdate = new PharUpdateCommand('self-update');
-            $selfUpdate->setDescription('Updates deployer.phar to the latest version');
-            $selfUpdate->setManifestUri('https://deployer.org/manifest.json');
-            $selfUpdate->setRunningFile(DEPLOYER_BIN);
-            $this->getConsole()->add($selfUpdate);
-            $this->getConsole()->getHelperSet()->set(new PharUpdateHelper());
-        }
     }
 
     /**
@@ -318,18 +297,24 @@ class Deployer extends Container
 
     public static function printException(OutputInterface $output, Throwable $exception): void
     {
-        $class = get_class($exception);
-        $file = basename($exception->getFile());
-        $output->writeln([
-            "<fg=white;bg=red> {$class} </> <comment>in {$file} on line {$exception->getLine()}:</>",
-            "",
-            implode("\n", array_map(function ($line) {
-                return "  " . $line;
-            }, explode("\n", $exception->getMessage()))),
-            "",
-        ]);
-        if ($output->isDebug()) {
-            $output->writeln($exception->getTraceAsString());
+        if ($exception instanceof SchemaException) {
+            $output->writeln([
+                "<fg=white;bg=red> Schema error </> {$exception->getMessage()}",
+            ]);
+        } else {
+            $class = get_class($exception);
+            $file = basename($exception->getFile());
+            $output->writeln([
+                "<fg=white;bg=red> {$class} </> <comment>in {$file} on line {$exception->getLine()}:</>",
+                "",
+                implode("\n", array_map(function ($line) {
+                    return "  " . $line;
+                }, explode("\n", $exception->getMessage()))),
+                "",
+            ]);
+            if ($output->isDebug()) {
+                $output->writeln($exception->getTraceAsString());
+            }
         }
 
         if ($exception->getPrevious()) {
@@ -351,15 +336,15 @@ class Deployer extends Container
         // in order for ticker gather worker outputs and print it to user.
         usleep(100_000); // Sleep 100ms.
 
-        return Httpie::get(MASTER_ENDPOINT . '/proxy')
-            ->setopt(CURLOPT_CONNECTTIMEOUT, 0) // no timeout
-            ->setopt(CURLOPT_TIMEOUT, 0) // no timeout
+        return Httpie::post(MASTER_ENDPOINT . '/proxy')
+            ->noTimeout()
+            ->bearerToken(MASTER_TOKEN)
             ->jsonBody([
                 'host' => $host->getAlias(),
                 'func' => $func,
                 'arguments' => $arguments,
             ])
-            ->getJson();
+            ->sendJson();
     }
 
     public static function isPharArchive(): bool

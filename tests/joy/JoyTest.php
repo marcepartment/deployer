@@ -47,6 +47,12 @@ abstract class JoyTest extends TestCase
 
     protected function init(string $recipe)
     {
+        // Clear any leftover Context from other tests to prevent
+        // recipe set() calls from writing to a stale host config.
+        while (\Deployer\Task\Context::has()) {
+            \Deployer\Task\Context::pop();
+        }
+
         $console = new Application();
         $console->setAutoExit(false);
         $this->tester = new ApplicationTester($console);
@@ -73,5 +79,22 @@ abstract class JoyTest extends TestCase
         ]);
     }
 
-    abstract protected function recipe(): string;
+    protected function depFile(string $recipe, string $task, array $args = []): int
+    {
+        $this->init($recipe);
+        return $this->tester->run(array_merge([
+            $task,
+            'selector' => 'all',
+            '--file' => $recipe,
+            '--limit' => 1,
+        ], $args), [
+            'verbosity' => OutputInterface::VERBOSITY_VERBOSE,
+            'interactive' => false,
+        ]);
+    }
+
+    protected function recipe(): string
+    {
+        return '';
+    }
 }

@@ -234,7 +234,7 @@ run(
     ?string $cwd = null,
     ?array  $env = null,
     #[\SensitiveParameter]
-    ?string $secret = null,
+    ?array  $secrets = null,
     ?bool   $nothrow = false,
     ?bool   $forceOutput = false,
     ?int    $timeout = null,
@@ -249,13 +249,24 @@ Examples:
 ```php
 run('echo hello world');
 run('cd {{deploy_path}} && git status');
-run('password %secret%', secret: getenv('CI_SECRET'));
+run('password %my_secret%', secrets: ['my_secret' => getenv('SECRET')]);
 run('curl medv.io', timeout: 5);
 ```
 
 ```php
 $path = run('readlink {{deploy_path}}/current');
 run("echo $path");
+```
+
+Use `| quote` filter to safely quote config values as shell arguments:
+```php
+run('echo {{ message | quote }}');
+run('grep -r {{ pattern | quote }} {{release_path}}');
+```
+
+To output literal `{{` without replacement, escape with a backslash `\{{`:
+```php
+run('echo \{{not_replaced}}'); // outputs: {{not_replaced}}
 ```
 
 
@@ -266,7 +277,7 @@ run("echo $path");
 | `$cwd` | `string` or `null` | Sets the process working directory. If not set {{working_path}} will be used. |
 | `$timeout` | `int` or `null` | Sets the process timeout (max. runtime). The timeout in seconds (default: 300 sec; see {{default_timeout}}, `null` to disable). |
 | `$idleTimeout` | `int` or `null` | Sets the process idle timeout (max. time since last output) in seconds. |
-| `$secret` | `string` or `null` | Placeholder `%secret%` can be used in command. Placeholder will be replaced with this value and will not appear in any logs. |
+| `$secrets` | `array` or `null` | Placeholder `%secret%` for sensitive information. |
 | `$env` | `array` or `null` | Array of environment variables: `run('echo $KEY', env: ['key' => 'value']);` |
 | `$forceOutput` | `bool` or `null` | Print command output in real-time. |
 | `$nothrow` | `bool` or `null` | Don't throw an exception of non-zero exit code. |
@@ -280,7 +291,7 @@ runLocally(
     ?int    $timeout = null,
     ?int    $idleTimeout = null,
     #[\SensitiveParameter]
-    ?string $secret = null,
+    ?array  $secrets = null,
     ?array  $env = null,
     ?bool   $forceOutput = false,
     ?bool   $nothrow = false,
@@ -306,7 +317,7 @@ runLocally("echo $user");
 | `$cwd` | `string` or `null` | Sets the process working directory. If not set {{working_path}} will be used. |
 | `$timeout` | `int` or `null` | Sets the process timeout (max. runtime). The timeout in seconds (default: 300 sec, `null` to disable). |
 | `$idleTimeout` | `int` or `null` | Sets the process idle timeout (max. time since last output) in seconds. |
-| `$secret` | `string` or `null` | Placeholder `%secret%` can be used in command. Placeholder will be replaced with this value and will not appear in any logs. |
+| `$secrets` | `array` or `null` | Placeholder `%secret%` for sensitive information. |
 | `$env` | `array` or `null` | Array of environment variables: `runLocally('echo $KEY', env: ['key' => 'value']);` |
 | `$forceOutput` | `bool` or `null` | Print command output in real-time. |
 | `$nothrow` | `bool` or `null` | Don't throw an exception of non-zero exit code. |
@@ -598,6 +609,21 @@ timestamp(): string
 ```
 
 Returns current timestamp in UTC timezone in ISO8601 format.
+
+
+## quote()
+
+```php
+quote(string $arg): string
+```
+
+Quotes a string for safe use as a shell argument using ANSI-C $'...' syntax.
+Safe characters (alphanumeric, `/.-+@:=,%`) are returned unquoted.
+
+```php
+run('git log --format=' . quote($format));
+run('echo ' . quote("it's a test"));  // echo $'it\'s a test'
+```
 
 
 ## fetch()

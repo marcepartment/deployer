@@ -25,16 +25,16 @@ class FileHandler implements HandlerInterface
         $this->filePath = $filePath;
     }
 
-    public function log(string $message): void
+    public function writeln(string $message): void
     {
         if(!empty($this->filePath)) {
-            file_put_contents($this->filePath, $message, FILE_APPEND);
+            file_put_contents($this->filePath, $message . "\n", FILE_APPEND);
         }
 
         if(Context::has()){
             if(currentHost()->has('log_file')){
                 if(!empty(currentHost()->get('log_file'))){
-                    file_put_contents(currentHost()->get('log_file'), $message, FILE_APPEND);
+                    file_put_contents(currentHost()->get('log_file'), $message . "\n", FILE_APPEND);
                 }
             }
         }

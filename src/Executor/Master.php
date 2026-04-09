@@ -13,6 +13,7 @@ namespace Deployer\Executor;
 use Deployer\Deployer;
 use Deployer\Host\Host;
 use Deployer\Host\HostCollection;
+use Deployer\Logger\Logger;
 use Deployer\Selector\Selector;
 use Deployer\Ssh\IOArguments;
 use Deployer\Task\Context;
@@ -35,19 +36,19 @@ class Master
     private HostCollection $hosts;
     private InputInterface $input;
     private OutputInterface $output;
-    private Messenger $messenger;
+    private Logger $logger;
     private string|false $phpBin;
 
     public function __construct(
         HostCollection  $hosts,
         InputInterface  $input,
         OutputInterface $output,
-        Messenger       $messenger,
+        Logger          $logger,
     ) {
         $this->hosts = $hosts;
         $this->input = $input;
         $this->output = $output;
-        $this->messenger = $messenger;
+        $this->logger = $logger;
         $this->phpBin = (new PhpExecutableFinder())->find();
     }
 
@@ -61,7 +62,7 @@ class Master
 
         foreach ($tasks as $task) {
             if (!$plan) {
-                $this->messenger->startTask($task);
+                $this->logger->startTask($task);
             }
 
             $plannedHosts = $hosts;
@@ -134,7 +135,7 @@ class Master
             }
 
             if (!$plan) {
-                $this->messenger->endTask($task);
+                $this->logger->endTask($task);
             }
         }
 
@@ -156,7 +157,7 @@ class Master
                 $worker = new Worker(Deployer::get());
                 $exitCode = $worker->execute($task, $host);
                 if ($exitCode !== 0) {
-                    $this->messenger->endTask($task, true);
+                    $this->logger->endTask($task);
                     return $exitCode;
                 }
             }
@@ -164,13 +165,15 @@ class Master
         }
 
         $server = new Server('127.0.0.1', 0, $this->output);
+        $authToken = bin2hex(random_bytes(16));
+        $server->setAuthToken($authToken);
 
         /** @var Process[] $processes */
         $processes = [];
 
-        $server->afterRun(function (int $port) use (&$processes, $hosts, $task) {
+        $server->afterRun(function (int $port) use (&$processes, $hosts, $task, $authToken) {
             foreach ($hosts as $host) {
-                $processes[] = $this->createProcess($host, $task, $port);
+                $processes[] = $this->createProcess($host, $task, $port, $authToken);
             }
 
             foreach ($processes as $process) {
@@ -216,6 +219,16 @@ class Master
                 case '/proxy':
                     ['host' => $host, 'func' => $func, 'arguments' => $arguments] = $payload;
 
+                    $allowedFunctions = [
+                        'Deployer\ask',
+                        'Deployer\askChoice',
+                        'Deployer\askConfirmation',
+                        'Deployer\askHiddenResponse',
+                    ];
+                    if (!in_array($func, $allowedFunctions, true)) {
+                        return new Response(403, ['error' => "Function not allowed: $func"]);
+                    }
+
                     Context::push(new Context($this->hosts->get($host)));
                     $answer = call_user_func($func, ...$arguments);
                     Context::pop();
@@ -235,13 +248,13 @@ class Master
         $this->gatherOutput($processes, $echoCallback);
 
         if ($this->cumulativeExitCode($processes) !== 0) {
-            $this->messenger->endTask($task, true);
+            $this->logger->endTask($task);
         }
 
         return $this->cumulativeExitCode($processes);
     }
 
-    protected function createProcess(Host $host, Task $task, int $port): Process
+    protected function createProcess(Host $host, Task $task, int $port, string $authToken): Process
     {
         $command = [
             $this->phpBin, DEPLOYER_BIN,
@@ -256,7 +269,9 @@ class Master
         if ($this->output->isDebug()) {
             $this->output->writeln("[$host] " . join(' ', $command));
         }
-        return new Process($command);
+        $process = new Process($command);
+        $process->setEnv(['DEPLOYER_MASTER_TOKEN' => $authToken]);
+        return $process;
     }
 
     /**

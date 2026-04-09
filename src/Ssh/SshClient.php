@@ -10,7 +10,6 @@ declare(strict_types=1);
 
 namespace Deployer\Ssh;
 
-use Deployer\ProcessRunner\Printer;
 use Deployer\Exception\RunException;
 use Deployer\Exception\TimeoutException;
 use Deployer\Host\Host;
@@ -20,17 +19,16 @@ use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 use function Deployer\Support\env_stringify;
+use function Deployer\Support\replace_secrets;
 
 class SshClient
 {
     private OutputInterface $output;
-    private Printer $pop;
     private Logger $logger;
 
-    public function __construct(OutputInterface $output, Printer $pop, Logger $logger)
+    public function __construct(OutputInterface $output, Logger $logger)
     {
         $this->output = $output;
-        $this->pop = $pop;
         $this->logger = $logger;
     }
 
@@ -48,7 +46,7 @@ class SshClient
         if ($this->output->isDebug()) {
             $sshString = $ssh[0];
             for ($i = 1; $i < count($ssh); $i++) {
-                $sshString .= ' ' . escapeshellarg((string) $ssh[$i]);
+                $sshString .= ' ' . \Deployer\quote((string) $ssh[$i]);
             }
             $this->output->writeln("[$host] $sshString");
         }
@@ -62,25 +60,16 @@ class SshClient
             $command = "export $env; $command";
         }
 
-        if (!empty($params->secrets)) {
-            foreach ($params->secrets as $key => $value) {
-                $command = str_replace('%' . $key . '%', strval($value), $command);
-            }
-        }
-
-        $this->pop->command($host, 'run', $command);
-        $this->logger->log("[{$host->getAlias()}] run $command");
-
+        $this->logger->command($host, 'run', $command);
 
         $process = new Process($ssh);
         $process
-            ->setInput($command)
+            ->setInput(replace_secrets($command, $params->secrets))
             ->setTimeout($params->timeout)
             ->setIdleTimeout($params->idleTimeout);
 
         $callback = function ($type, $buffer) use ($params, $host) {
-            $this->logger->printBuffer($host, $type, $buffer);
-            $this->pop->callback($host, $params->forceOutput)($type, $buffer);
+            $this->logger->print($host, $buffer, $params->forceOutput);
         };
 
         try {

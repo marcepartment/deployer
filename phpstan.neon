@@ -4,6 +4,7 @@ includes:
 parameters:
     level: 5
     paths:
+        - bin
         - src
         - recipe
         - contrib
@@ -12,8 +13,6 @@ parameters:
         - "#^Constant DEPLOYER_VERSION not found\\.$#"
         - "#^Constant DEPLOYER_BIN not found\\.$#"
         - "#^Constant MASTER_ENDPOINT not found\\.$#"
+        - "#^Constant MASTER_TOKEN not found\\.$#"
         - "#CpanelPhp#"
         - "#AMQPMessage#"
-
-    excludePaths:
-        - src/Component/PharUpdate/*

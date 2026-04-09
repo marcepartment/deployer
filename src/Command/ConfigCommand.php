@@ -13,6 +13,7 @@ namespace Deployer\Command;
 use Deployer\Deployer;
 use Deployer\Exception\WillAskUser;
 use Deployer\Task\Context;
+use Maml\Maml;
 use Symfony\Component\Console\Input\InputInterface as Input;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\NullOutput;
@@ -30,7 +31,7 @@ class ConfigCommand extends SelectCommand
     protected function configure(): void
     {
         parent::configure();
-        $this->addOption('format', null, InputOption::VALUE_REQUIRED, 'The output format (json, yaml)', 'yaml');
+        $this->addOption('format', null, InputOption::VALUE_REQUIRED, 'The output format (json, maml, yaml)', 'maml');
         $this->getDefinition()->getArgument('selector')->setDefault(['all']);
     }
 
@@ -41,30 +42,38 @@ class ConfigCommand extends SelectCommand
         $hosts = $this->selectHosts($input, $output);
         $data = [];
         $keys = $this->deployer->config->keys();
-        define('DEPLOYER_NO_ASK', true);
-        foreach ($hosts as $host) {
-            Context::push(new Context($host));
-            $values = [];
-            foreach ($keys as $key) {
-                try {
-                    $values[$key] = $host->get($key);
-                } catch (WillAskUser $exception) {
-                    $values[$key] = ['ask' => $exception->getMessage()];
-                } catch (\Throwable $exception) {
-                    $values[$key] = ['error' => $exception->getMessage()];
+        WillAskUser::$noAsk = true;
+        try {
+            foreach ($hosts as $host) {
+                Context::push(new Context($host));
+                $values = [];
+                foreach ($keys as $key) {
+                    try {
+                        $values[$key] = $host->get($key);
+                    } catch (WillAskUser $exception) {
+                        $values[$key] = ['ask' => $exception->getMessage()];
+                    } catch (\Throwable $exception) {
+                        $values[$key] = ['error' => $exception->getMessage()];
+                    }
                 }
+                foreach ($host->config()->persist() as $k => $v) {
+                    $values[$k] = $v;
+                }
+                ksort($values);
+                $data[$host->getAlias()] = $values;
+                Context::pop();
             }
-            foreach ($host->config()->persist() as $k => $v) {
-                $values[$k] = $v;
-            }
-            ksort($values);
-            $data[$host->getAlias()] = $values;
-            Context::pop();
+        } finally {
+            WillAskUser::$noAsk = false;
         }
         $format = $input->getOption('format');
         switch ($format) {
             case 'json':
                 $output->writeln(json_encode($data, JSON_PRETTY_PRINT));
+                break;
+
+            case 'maml':
+                $output->writeln(Maml::stringify($data));
                 break;
 
             case 'yaml':

@@ -21,33 +21,20 @@ use Symfony\Component\Process\Process;
 
 use function Deployer\Support\deployer_root;
 use function Deployer\Support\env_stringify;
+use function Deployer\Support\replace_secrets;
 
 class ProcessRunner
 {
-    private Printer $pop;
     private Logger $logger;
 
-    public function __construct(Printer $pop, Logger $logger)
+    public function __construct(Logger $logger)
     {
-        $this->pop = $pop;
         $this->logger = $logger;
     }
 
     public function run(Host $host, string $command, RunParams $params): string
     {
-        $this->pop->command($host, 'run', $command);
-
-        $terminalOutput = $this->pop->callback($host, $params->forceOutput);
-        $callback = function ($type, $buffer) use ($host, $terminalOutput) {
-            $this->logger->printBuffer($host, $type, $buffer);
-            $terminalOutput($type, $buffer);
-        };
-
-        if (!empty($params->secrets)) {
-            foreach ($params->secrets as $key => $value) {
-                $command = str_replace('%' . $key . '%', $value, $command);
-            }
-        }
+        $this->logger->command($host, 'run', $command);
 
         if (!empty($params->env)) {
             $env = env_stringify($params->env);
@@ -59,10 +46,14 @@ class ProcessRunner
         }
 
         $process = Process::fromShellCommandline($params->shell)
-            ->setInput($command)
+            ->setInput(replace_secrets($command, $params->secrets))
             ->setTimeout($params->timeout)
             ->setIdleTimeout($params->idleTimeout)
             ->setWorkingDirectory($params->cwd ?? deployer_root());
+
+        $callback = function ($type, $buffer) use ($params, $host) {
+            $this->logger->print($host, $buffer, $params->forceOutput);
+        };
 
         try {
             $process->mustRun($callback);
@@ -78,7 +69,7 @@ class ProcessRunner
                 $process->getOutput(),
                 $process->getErrorOutput(),
             );
-        } catch (ProcessTimedOutException $exception) { // @phpstan-ignore-line PHPStan doesn't know about ProcessTimedOutException for some reason.
+        } catch (ProcessTimedOutException $exception) {
             throw new TimeoutException(
                 $command,
                 $exception->getExceededTimeout(),

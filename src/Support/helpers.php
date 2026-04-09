@@ -10,6 +10,8 @@ declare(strict_types=1);
 
 namespace Deployer\Support;
 
+use function Deployer\quote;
+
 function array_flatten(array $array): array
 {
     $flatten = [];
@@ -58,11 +60,21 @@ function env_stringify(array $array): string
 {
     return implode(' ', array_map(
         function ($key, $value) {
-            return sprintf("%s=%s", $key, escapeshellarg((string) $value));
+            return sprintf("%s=%s", $key, quote((string) $value));
         },
         array_keys($array),
         $array,
     ));
+}
+
+function replace_secrets(string $command, ?array $secrets): string
+{
+    if (!empty($secrets)) {
+        foreach ($secrets as $key => $value) {
+            $command = str_replace('%' . $key . '%', strval($value), $command);
+        }
+    }
+    return $command;
 }
 
 function is_closure(mixed $var): bool
@@ -109,16 +121,6 @@ function parse_home_dir(string $path): string
     }
 
     return $path;
-}
-
-function find_line_number(string $source, string $string): int
-{
-    $string = explode(PHP_EOL, $string)[0];
-    $before = strstr($source, $string, true);
-    if (false !== $before) {
-        return count(explode(PHP_EOL, $before));
-    }
-    return 1;
 }
 
 function colorize_host(string $alias): string

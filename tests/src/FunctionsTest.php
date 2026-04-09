@@ -31,13 +31,14 @@ class FunctionsTest extends TestCase
     {
         $console = new Application();
 
-        $input = $this->createMock(Input::class);
-        $output = $this->createMock(Output::class);
-        $host = new Localhost();
+        $input = $this->createStub(Input::class);
+        $output = $this->createStub(Output::class);
 
         $this->deployer = new Deployer($console);
         $this->deployer['input'] = $input;
         $this->deployer['output'] = $output;
+
+        $host = new Localhost();
         Context::push(new Context($host));
     }
 

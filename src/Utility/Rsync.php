@@ -10,31 +10,26 @@ declare(strict_types=1);
 
 namespace Deployer\Utility;
 
-use Deployer\ProcessRunner\Printer;
 use Deployer\Exception\RunException;
 use Deployer\Host\Host;
+use Deployer\Logger\Logger;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
+use function Deployer\quote;
 use function Deployer\writeln;
 
 class Rsync
 {
-    /**
-     * @var Printer
-     */
-    private $pop;
-    /**
-     * @var OutputInterface
-     */
-    private $output;
+    private OutputInterface $output;
+    private Logger $logger;
 
-    public function __construct(Printer $pop, OutputInterface $output)
+    public function __construct(OutputInterface $output, Logger $logger)
     {
-        $this->pop = $pop;
         $this->output = $output;
+        $this->logger = $logger;
     }
 
     /**
@@ -82,7 +77,7 @@ class Rsync
 
         $commandString = $command[0];
         for ($i = 1; $i < count($command); $i++) {
-            $commandString .= ' ' . escapeshellarg($command[$i]);
+            $commandString .= ' ' . quote($command[$i]);
         }
         if ($this->output->isVerbose()) {
             $this->output->writeln("[$host] $commandString");
@@ -112,9 +107,7 @@ class Rsync
                 }
                 return;
             }
-            if ($this->output->isVerbose()) {
-                $this->pop->printBuffer($type, $host, $buffer);
-            }
+            $this->logger->print($host, $buffer);
         };
 
         $process = new Process($command);

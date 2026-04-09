@@ -115,9 +115,18 @@ class Configuration implements \ArrayAccess
     {
         if (is_string($value)) {
             $normalizedValue = normalize_line_endings($value);
-            return preg_replace_callback('/\{\{\s*([\w\.\/-]+)\s*\}\}/', function (array $matches) {
-                return $this->get($matches[1]);
+            $normalizedValue = str_replace('\{{', "\x00\x00", $normalizedValue);
+            $result = preg_replace_callback('/\{\{\s*([\w\.\/-]+)\s*(?:\|\s*(\w+)\s*)?\}\}/', function (array $matches) {
+                $value = $this->get($matches[1]);
+                if (isset($matches[2])) {
+                    $value = match ($matches[2]) {
+                        'quote' => quote((string) $value),
+                        default => throw new \InvalidArgumentException("Unknown filter: {$matches[2]}"),
+                    };
+                }
+                return $value;
             }, $normalizedValue);
+            return str_replace("\x00\x00", '{{', $result);
         }
 
         return $value;
@@ -173,13 +182,13 @@ class Configuration implements \ArrayAccess
             return;
         }
 
-        $values = Httpie::get(MASTER_ENDPOINT . '/load')
-            ->setopt(CURLOPT_CONNECTTIMEOUT, 0)
-            ->setopt(CURLOPT_TIMEOUT, 0)
+        $values = Httpie::post(MASTER_ENDPOINT . '/load')
+            ->noTimeout()
+            ->bearerToken(MASTER_TOKEN)
             ->jsonBody([
                 'host' => $this->get('alias'),
             ])
-            ->getJson();
+            ->sendJson();
         $this->update($values);
     }
 
@@ -189,14 +198,14 @@ class Configuration implements \ArrayAccess
             return;
         }
 
-        Httpie::get(MASTER_ENDPOINT . '/save')
-            ->setopt(CURLOPT_CONNECTTIMEOUT, 0)
-            ->setopt(CURLOPT_TIMEOUT, 0)
+        Httpie::post(MASTER_ENDPOINT . '/save')
+            ->noTimeout()
+            ->bearerToken(MASTER_TOKEN)
             ->jsonBody([
                 'host' => $this->get('alias'),
                 'config' => $this->persist(),
             ])
-            ->getJson();
+            ->sendJson();
     }
 
     public function persist(): array

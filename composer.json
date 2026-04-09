@@ -31,8 +31,9 @@
     },
     "scripts": {
         "test": "phpunit",
-        "check": "composer iphp-cs-fixer check",
+        "check": "php-cs-fixer check",
         "fix": "php-cs-fixer fix",
+        "docgen": "php bin/docgen",
         "phpstan": "phpstan analyse -c phpstan.neon --memory-limit 1G",
         "phpstan:baseline": "@phpstan --generate-baseline tests/phpstan-baseline.neon"
     },
@@ -41,12 +42,14 @@
     ],
     "require": {
         "php": "^8.3",
+        "maml/maml": "^3.1",
         "symfony/console": "^7.4.0 || ^8.0.0",
         "symfony/process": "^7.4.0 || ^8.0.0",
         "symfony/yaml": "^7.4.0 || ^8.0.0"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.68",
+        "phpstan/phpstan": "^2.1",
         "phpunit/php-code-coverage": "^12.0",
         "phpunit/phpunit": "^12.5"
     },

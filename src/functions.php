@@ -18,7 +18,7 @@ use Deployer\Exception\WillAskUser;
 use Deployer\Host\Host;
 use Deployer\Host\Localhost;
 use Deployer\Host\Range;
-use Deployer\Importer\Importer;
+use Deployer\Import\Import;
 use Deployer\Ssh\RunParams;
 use Deployer\Support\ObjectProxy;
 use Deployer\Task\Context;
@@ -157,7 +157,7 @@ function selectedHosts(): array
  */
 function import(string $file): void
 {
-    Importer::import($file);
+    Import::import($file);
 }
 
 /**
@@ -367,7 +367,7 @@ function within(string $path, callable $callback): mixed
  * ```php
  * run('echo hello world');
  * run('cd {{deploy_path}} && git status');
- * run('password %secret%', secret: getenv('CI_SECRET'));
+ * run('password %my_secret%', secrets: ['my_secret' => getenv('SECRET')]);
  * run('curl medv.io', timeout: 5);
  * ```
  *
@@ -376,11 +376,22 @@ function within(string $path, callable $callback): mixed
  * run("echo $path");
  * ```
  *
+ * Use `| quote` filter to safely quote config values as shell arguments:
+ * ```php
+ * run('echo {{ message | quote }}');
+ * run('grep -r {{ pattern | quote }} {{release_path}}');
+ * ```
+ *
+ * To output literal `{{` without replacement, escape with a backslash `\{{`:
+ * ```php
+ * run('echo \{{not_replaced}}'); // outputs: {{not_replaced}}
+ * ```
+ *
  * @param string $command Command to run on remote host.
  * @param string|null $cwd Sets the process working directory. If not set {{working_path}} will be used.
  * @param int|null $timeout Sets the process timeout (max. runtime). The timeout in seconds (default: 300 sec; see {{default_timeout}}, `null` to disable).
  * @param int|null $idleTimeout Sets the process idle timeout (max. time since last output) in seconds.
- * @param string|null $secret Placeholder `%secret%` can be used in command. Placeholder will be replaced with this value and will not appear in any logs.
+ * @param array|null $secrets Placeholder `%secret%` for sensitive information.
  * @param array|null $env Array of environment variables: `run('echo $KEY', env: ['key' => 'value']);`
  * @param bool|null $forceOutput Print command output in real-time.
  * @param bool|null $nothrow Don't throw an exception of non-zero exit code.
@@ -394,7 +405,7 @@ function run(
     ?string $cwd = null,
     ?array  $env = null,
     #[\SensitiveParameter]
-    ?string $secret = null,
+    ?array  $secrets = null,
     ?bool   $nothrow = false,
     ?bool   $forceOutput = false,
     ?int    $timeout = null,
@@ -402,13 +413,13 @@ function run(
 ): string {
     $runParams = new RunParams(
         shell: currentHost()->getShell(),
-        cwd: $cwd ?? has('working_path') ? get('working_path') : null,
+        cwd: $cwd ?? (has('working_path') ? get('working_path') : null),
         env: array_merge_alternate(get('env', []), $env ?? []),
         nothrow: $nothrow,
         timeout: $timeout ?? get('default_timeout', 300),
         idleTimeout: $idleTimeout,
         forceOutput: $forceOutput,
-        secrets: empty($secret) ? null : ['secret' => $secret],
+        secrets: $secrets,
     );
 
     $dotenv = get('dotenv', false);
@@ -444,7 +455,7 @@ function run(
             $run("chmod a+x $askpass");
             $command = preg_replace('/^sudo\b/', 'sudo -A', $command);
             $output = $run(" SUDO_ASKPASS=$askpass PASSWORD=%sudo_pass% $command", $runParams->with(
-                secrets: ['sudo_pass' => escapeshellarg($password)],
+                secrets: ['sudo_pass' => quote($password)],
             ));
             $run("rm $askpass");
             return $output;
@@ -469,7 +480,7 @@ function run(
  * @param string|null $cwd Sets the process working directory. If not set {{working_path}} will be used.
  * @param int|null $timeout Sets the process timeout (max. runtime). The timeout in seconds (default: 300 sec, `null` to disable).
  * @param int|null $idleTimeout Sets the process idle timeout (max. time since last output) in seconds.
- * @param string|null $secret Placeholder `%secret%` can be used in command. Placeholder will be replaced with this value and will not appear in any logs.
+ * @param array|null $secrets Placeholder `%secret%` for sensitive information.
  * @param array|null $env Array of environment variables: `runLocally('echo $KEY', env: ['key' => 'value']);`
  * @param bool|null $forceOutput Print command output in real-time.
  * @param bool|null $nothrow Don't throw an exception of non-zero exit code.
@@ -485,7 +496,7 @@ function runLocally(
     ?int    $timeout = null,
     ?int    $idleTimeout = null,
     #[\SensitiveParameter]
-    ?string $secret = null,
+    ?array  $secrets = null,
     ?array  $env = null,
     ?bool   $forceOutput = false,
     ?bool   $nothrow = false,
@@ -499,7 +510,7 @@ function runLocally(
         timeout: $timeout,
         idleTimeout: $idleTimeout,
         forceOutput: $forceOutput,
-        secrets: empty($secret) ? null : ['secret' => $secret],
+        secrets: $secrets,
     );
 
     $process = Deployer::get()->processRunner;
@@ -575,7 +586,7 @@ function on($hosts, callable $callback): void
                 $callback($host);
                 $host->config()->save();
             } catch (GracefulShutdownException $e) {
-                Deployer::get()->messenger->renderException($e, $host);
+                Deployer::get()->logger->renderException($e, $host);
             } finally {
                 Context::pop();
             }
@@ -596,9 +607,9 @@ function on($hosts, callable $callback): void
 function invoke(string $taskName): void
 {
     $task = Deployer::get()->tasks->get($taskName);
-    Deployer::get()->messenger->startTask($task);
+    Deployer::get()->logger->startTask($task);
     $task->run(Context::get());
-    Deployer::get()->messenger->endTask($task);
+    Deployer::get()->logger->endTask($task);
 }
 
 /**
@@ -757,7 +768,7 @@ function has(string $name): bool
 
 function ask(string $message, ?string $default = null, ?array $autocomplete = null): ?string
 {
-    if (defined('DEPLOYER_NO_ASK')) {
+    if (WillAskUser::$noAsk) {
         throw new WillAskUser($message);
     }
     Context::required(__FUNCTION__);
@@ -792,7 +803,7 @@ function ask(string $message, ?string $default = null, ?array $autocomplete = nu
  */
 function askChoice(string $message, array $availableChoices, $default = null, bool $multiselect = false)
 {
-    if (defined('DEPLOYER_NO_ASK')) {
+    if (WillAskUser::$noAsk) {
         throw new WillAskUser($message);
     }
     Context::required(__FUNCTION__);
@@ -831,7 +842,7 @@ function askChoice(string $message, array $availableChoices, $default = null, bo
 
 function askConfirmation(string $message, bool $default = false): bool
 {
-    if (defined('DEPLOYER_NO_ASK')) {
+    if (WillAskUser::$noAsk) {
         throw new WillAskUser($message);
     }
     Context::required(__FUNCTION__);
@@ -859,7 +870,7 @@ function askConfirmation(string $message, bool $default = false): bool
 
 function askHiddenResponse(string $message): string
 {
-    if (defined('DEPLOYER_NO_ASK')) {
+    if (WillAskUser::$noAsk) {
         throw new WillAskUser($message);
     }
     Context::required(__FUNCTION__);
@@ -923,14 +934,14 @@ function commandSupportsOption(string $command, string $option): bool
  */
 function which(string $name): string
 {
-    $nameEscaped = escapeshellarg($name);
+    $nameQuoted = quote($name);
 
     // Try `command`, should cover all Bourne-like shells
     // Try `which`, should cover most other cases
     // Fallback to `type` command, if the rest fails
-    $path = run("command -v $nameEscaped || which $nameEscaped || type -p $nameEscaped");
+    $path = run("command -v $nameQuoted || which $nameQuoted || type -p $nameQuoted");
     if (empty($path)) {
-        throw new \RuntimeException("Can't locate [$nameEscaped] - neither of [command|which|type] commands are available");
+        throw new \RuntimeException("Can't locate [$nameQuoted] - neither of [command|which|type] commands are available");
     }
 
     // Deal with issue when `type -p` outputs something like `type -ap` in some implementations
@@ -973,6 +984,35 @@ function timestamp(): string
 }
 
 /**
+ * Quotes a string for safe use as a shell argument using ANSI-C $'...' syntax.
+ * Safe characters (alphanumeric, `/.-+@:=,%`) are returned unquoted.
+ *
+ * ```php
+ * run('git log --format=' . quote($format));
+ * run('echo ' . quote("it's a test"));  // echo $'it\'s a test'
+ * ```
+ */
+function quote(string $arg): string
+{
+    if ($arg === '') {
+        return "\$''";
+    }
+    if (preg_match('/^[\w\/.\-+@:=,%]+$/', $arg)) {
+        return $arg;
+    }
+    return "\$'" . strtr($arg, [
+        '\\' => '\\\\',
+        "'" => "\\'",
+        "\f" => '\\f',
+        "\n" => '\\n',
+        "\r" => '\\r',
+        "\t" => '\\t',
+        "\v" => '\\v',
+        "\0" => '\\0',
+    ]) . "'";
+}
+
+/**
  * Example usage:
  * ```php
  * $result = fetch('{{domain}}', info: $info);
@@ -982,13 +1022,14 @@ function timestamp(): string
 function fetch(string $url, string $method = 'get', array $headers = [], ?string $body = null, ?array &$info = null, bool $nothrow = false): string
 {
     $url = parse($url);
-    if (strtolower($method) === 'get') {
-        $http = Httpie::get($url);
-    } elseif (strtolower($method) === 'post') {
-        $http = Httpie::post($url);
-    } else {
-        throw new \InvalidArgumentException("Unknown method \"$method\".");
-    }
+    $http = match (strtolower($method)) {
+        'get' => Httpie::get($url),
+        'post' => Httpie::post($url),
+        'put' => Httpie::put($url),
+        'patch' => Httpie::patch($url),
+        'delete' => Httpie::delete($url),
+        default => throw new \InvalidArgumentException("Unknown method \"$method\"."),
+    };
     $http = $http->nothrow($nothrow);
     foreach ($headers as $key => $value) {
         $http = $http->header($key, $value);
@@ -996,5 +1037,5 @@ function fetch(string $url, string $method = 'get', array $headers = [], ?string
     if ($body !== null) {
         $http = $http->body($body);
     }
-    return $http->send($info);
+    return $http->send($info)->body();
 }
